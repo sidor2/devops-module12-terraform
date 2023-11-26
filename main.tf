@@ -8,6 +8,7 @@ variable subnet_cidr_block {}
 variable subnet_az {}
 variable env_prefix {}
 variable my_ip {}
+variable instance_type {}
 
 resource "aws_vpc" "myapp-vpc" {
   cidr_block = var.vpc_cidr_block
@@ -70,4 +71,35 @@ resource "aws_security_group" "myapp-sg" {
     tags = {
         Name = "${var.env_prefix}-sg"
     }
+}
+
+data "aws_ami" "amazon-linux-2" {
+  most_recent = true
+  owners = ["amazon"]
+  filter {
+    name = "name"
+    values = ["amzn2-ami-hvm-*-x86_64-gp2"]
+  }
+  filter {
+    name = "virtualization-type"
+    values = ["hvm"]
+  }
+}
+
+resource "aws_instance" "myapp-server" {
+  ami = data.aws_ami.amazon-linux-2.id
+  instance_type = var.instance_type
+  key_name = "ec2devops"
+  vpc_security_group_ids = [aws_security_group.myapp-sg.id]
+  subnet_id = aws_subnet.myapp-subnet-1.id
+  associate_public_ip_address = true
+  availability_zone = var.subnet_az
+  tags = {
+    Name = "${var.env_prefix}-server"
+  }
+  user_data = file("entry-script.sh")
+}
+
+output "ec2-piblic-ip" {
+  value = aws_instance.myapp-server.public_ip
 }
